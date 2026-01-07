@@ -1,11 +1,68 @@
 Vagrant.configure("2") do |config|
-  config.vm.box = "ubuntu/jammy64"
 
-  config.vm.network "forwarded_port", guest: 80, host: 8080
+  config.vm.define "mgama" do |mg|
+    mg.vm.box = "generic/alpine319"
+    mg.vm.hostname = "mgamaS"
+    mg.vm.network "private_network", ip: "192.168.56.110", auto_config: true
 
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = "1024"
+    mg.vm.provider :libvirt do |lv|
+      lv.memory = 512
+      lv.cpus = 1
+    end
+
+    mg.vm.provision "shell", inline: <<-SHELL
+      set -e
+      echo "==> Installation des dépendances"
+      apk update
+      apk add curl iptables ip6tables ca-certificates qemu-guest-agent
+
+      rc-update add iptables boot
+      service iptables start || true
+
+      rc-update add qemu-guest-agent boot
+      service qemu-guest-agent start || true
+
+      echo "==> Installation de k3s"
+      curl -sfL https://get.k3s.io | sh -
+
+      echo "==> Attente du démarrage de k3s"
+      sleep 10
+
+      echo "==> Vérification"
+      /usr/local/bin/kubectl get nodes
+    SHELL
   end
 
-  config.vm.provision "shell", inline: "apt-get update && apt-get install -y nginx"
+  config.vm.define "mbrement" do |mb|
+    mb.vm.box = "generic/alpine319"
+    mb.vm.hostname = "mbrementSW"
+    mb.vm.network "private_network", ip: "192.168.56.111", auto_config: true
+
+    mb.vm.provider :libvirt do |lv|
+      lv.memory = 512
+      lv.cpus = 1
+    end
+
+    mb.vm.provision "shell", inline: <<-SHELL
+      set -e
+      echo "==> Installation des dépendances"
+      apk update
+      apk add curl iptables ip6tables ca-certificates qemu-guest-agent
+
+      rc-update add iptables boot
+      service iptables start || true
+
+      rc-update add qemu-guest-agent boot
+      service qemu-guest-agent start || true
+
+      echo "==> Installation de k3s"
+      curl -sfL https://get.k3s.io | sh -
+
+      echo "==> Attente du démarrage de k3s"
+      sleep 10
+
+      echo "==> Vérification"
+      /usr/local/bin/kubectl get nodes
+    SHELL
+  end
 end
