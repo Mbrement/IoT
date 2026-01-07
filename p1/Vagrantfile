@@ -1,68 +1,51 @@
 Vagrant.configure("2") do |config|
+  # Utilisation d'une box Debian 12 propre
+  config.vm.box = "generic/debian12"
 
   config.vm.define "mgama" do |mg|
-    mg.vm.box = "generic/alpine319"
     mg.vm.hostname = "mgamaS"
-    mg.vm.network "private_network", ip: "192.168.56.110", auto_config: true
+    # Utilisation d'une IP sur une plage standard VirtualBox
+    mg.vm.network "private_network", ip: "192.168.56.110"
 
-    mg.vm.provider :libvirt do |lv|
-      lv.memory = 512
-      lv.cpus = 1
+    mg.vm.provider "virtualbox" do |vb|
+      # IMPORTANT : K3s a besoin de minimum 1Go pour ne pas figer au boot
+      vb.memory = 1024
+      vb.cpus = 1
+      vb.linked_clone = true
+      # Activer l'interface graphique si tu veux voir où ça bloque
+      # vb.gui = true 
     end
 
     mg.vm.provision "shell", inline: <<-SHELL
-      set -e
-      echo "==> Installation des dépendances"
-      apk update
-      apk add curl iptables ip6tables ca-certificates qemu-guest-agent
-
-      rc-update add iptables boot
-      service iptables start || true
-
-      rc-update add qemu-guest-agent boot
-      service qemu-guest-agent start || true
-
-      echo "==> Installation de k3s"
+      apt-get update && apt-get install -y curl
+      export INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --bind-address 192.168.56.110 --node-ip 192.168.56.110 --flannel-iface=eth1"
       curl -sfL https://get.k3s.io | sh -
-
-      echo "==> Attente du démarrage de k3s"
-      sleep 10
-
-      echo "==> Vérification"
-      /usr/local/bin/kubectl get nodes
+      
+      # On attend que le token soit généré
+      while [ ! -f /var/lib/rancher/k3s/server/node-token ]; do sleep 2; done
+      cp /var/lib/rancher/k3s/server/node-token /vagrant/node-token
     SHELL
   end
 
   config.vm.define "mbrement" do |mb|
-    mb.vm.box = "generic/alpine319"
     mb.vm.hostname = "mbrementSW"
-    mb.vm.network "private_network", ip: "192.168.56.111", auto_config: true
+    mb.vm.network "private_network", ip: "192.168.56.111"
 
-    mb.vm.provider :libvirt do |lv|
-      lv.memory = 512
-      lv.cpus = 1
+    mb.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus = 1
+      vb.linked_clone = true
     end
 
     mb.vm.provision "shell", inline: <<-SHELL
-      set -e
-      echo "==> Installation des dépendances"
-      apk update
-      apk add curl iptables ip6tables ca-certificates qemu-guest-agent
-
-      rc-update add iptables boot
-      service iptables start || true
-
-      rc-update add qemu-guest-agent boot
-      service qemu-guest-agent start || true
-
-      echo "==> Installation de k3s"
+      apt-get update && apt-get install -y curl
+      while [ ! -f /vagrant/node-token ]; do sleep 2; done
+      
+      export K3S_URL="https://192.168.56.110:6443"
+      export K3S_TOKEN=$(cat /vagrant/node-token)
+      export INSTALL_K3S_EXEC="--node-ip 192.168.56.111 --flannel-iface=eth1"
+      
       curl -sfL https://get.k3s.io | sh -
-
-      echo "==> Attente du démarrage de k3s"
-      sleep 10
-
-      echo "==> Vérification"
-      /usr/local/bin/kubectl get nodes
     SHELL
   end
 end
