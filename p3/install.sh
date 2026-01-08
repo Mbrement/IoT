@@ -5,7 +5,7 @@ set -e
 echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
-BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/main/manifest/bootstrap.yml"
+BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml"
 
 get_sudo() {
 	SUDO=""
