@@ -7,6 +7,42 @@ echo "🚀 Installing environment..."
 CLUSTER_NAME="petit-nuage"
 BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml"
 
+SPINNER_PID=
+CHARS=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+
+spinner() {
+	local c
+	local message=$1
+	while true; do
+		for c in "${CHARS[@]}"; do
+			printf ' %s \r' "$c$message"
+			sleep .2
+		done
+	done
+}
+
+cleanup() {
+	if [[ -n $SPINNER_PID ]]; then
+		debug "killing spinner ($SPINNER_PID)"
+		kill "$SPINNER_PID"
+	fi
+
+	debug 'finished spinner'
+}
+
+spinner_cmd() {
+	local message=$1
+	shift
+	trap cleanup EXIT
+	spinner "$message" &
+	SPINNER_PID=$!
+
+	"$@"
+
+	cleanup
+	trap - EXIT
+}
+
 get_sudo() {
 	SUDO=""
 
@@ -128,8 +164,7 @@ install_argocd() {
     # 2. Installation via le manifest officiel
     kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-    echo "⏳ Waiting for ArgoCD components to be ready..."
-    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+    spinner_cmd "Waiting for ArgoCD components to be ready..." kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 
     # 3. Récupération du mot de passe admin (initial)
     ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
