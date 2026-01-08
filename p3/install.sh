@@ -15,8 +15,8 @@ spinner() {
 	local message=$1
 	while true; do
 		for c in "${CHARS[@]}"; do
-			printf ' %s \r' "$c$message"
-			sleep .2
+			printf ' %s \r' "$c $message"
+			sleep .1
 		done
 	done
 }
