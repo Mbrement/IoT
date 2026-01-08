@@ -5,18 +5,18 @@ set -e
 echo "🚀 Installing environment..."
 
 install_package() {
-    local pkg=$1
-    local SUDO=""
+	local pkg=$1
+	local SUDO=""
 
-    if [[ $EUID -ne 0 ]]; then
-        if command -v sudo &> /dev/null; then
-            SUDO="sudo"
-        else
-            echo "⚠️ Not root and sudo not found. Trying to install without privileges..."
-        fi
-    fi
+	if [[ $EUID -ne 0 ]]; then
+		if command -v sudo &> /dev/null; then
+			SUDO="sudo"
+		else
+			echo "⚠️ Not root and sudo not found. Trying to install without privileges..."
+		fi
+	fi
 
-    if command -v apt &> /dev/null; then
+	if command -v apt &> /dev/null; then
 		$SUDO apt update && $SUDO apt install -y "$pkg"
 	else
 		echo "❌ No supported package manager found. Install $pkg manually."
@@ -24,7 +24,7 @@ install_package() {
 }
 
 install_docker() {
-    if command -v docker &> /dev/null; then
+	if command -v docker &> /dev/null; then
 		echo "✅ Docker is already installed."
 		return 0
 	fi
@@ -58,25 +58,25 @@ PREREQ_PKGS=(curl wget unzip ca-certificates)
 
 MISSING_PKGS=()
 for pkg in "${PREREQ_PKGS[@]}"; do
-    if ! command -v "$pkg" &> /dev/null; then
+	if ! dpkg -l | grep -q "^ii  $pkg "; then
         MISSING_PKGS+=("$pkg")
     fi
 done
 
 if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
-    echo "Les paquets suivants sont nécessaires mais manquants : ${MISSING_PKGS[*]}"
-    read -p "Voulez-vous les installer maintenant ? (Y/n) " yn
-    yn=${yn:-Y}
-    if [[ "$yn" =~ ^[Yy]$ ]]; then
-        for pkg in "${MISSING_PKGS[@]}"; do
-            echo "📦 Installation de $pkg..."
-            install_package "$pkg"
-        done
-    else
-        echo "⚠️ Certains paquets nécessaires ne sont pas installés. Le script peut ne pas fonctionner correctement."
-    fi
+	echo "The following packages are required but missing: ${MISSING_PKGS[*]}"
+	read -p "Do you want to install them now? (Y/n) " yn
+	yn=${yn:-Y}
+	if [[ "$yn" =~ ^[Yy]$ ]]; then
+		for pkg in "${MISSING_PKGS[@]}"; do
+			echo "📦 Installing $pkg..."
+			install_package "$pkg"
+		done
+	else
+		echo "⚠️ Some required packages are not installed. The script may not work correctly."
+	fi
 else
-    echo "✅ Tous les paquets prérequis sont déjà installés."
+	echo "✅ All prerequisite packages are already installed."
 fi
 
 install_docker
