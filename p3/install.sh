@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
+#
+# This script sets up a local Kubernetes environment using k3d,
+# installs necessary tools, and deploys ArgoCD with a bootstrap application.
+# It is not production-ready and is intended for educational purposes only.
+#
+# You should not run this script on your host machine directly.
+# Instead, run it inside the provided VM or containerized environment.
 
 set -e
 
 echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
+# URL of the ArgoCD bootstrap manifest
 BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml"
+# List of all port mappings for the k3d cluster
+# K3d runs on Docker, it cannot automatically map ports based on services like a normal Kubernetes cluster.
 PORT_MAPPING=(
 	"8888:30088"
 )
+
+#### Spinner functions and utility functions ####
 
 SPINNER_PID=
 CHARS=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
@@ -43,6 +55,8 @@ spinner_cmd() {
 	trap - EXIT
 }
 
+#### Installation functions ####
+
 get_sudo() {
 	SUDO=""
 
@@ -65,7 +79,7 @@ install_package() {
 	if command -v apt &> /dev/null; then
 		$SUDO apt update && $SUDO apt install -y "$pkg"
 	else
-		echo "❌ No supported package manager found. Install $pkg manually."
+		echo "❌ No supported package manager found. Install $pkg manually." >&2
 	fi
 }
 
@@ -89,7 +103,7 @@ install_packages() {
 				install_package "$pkg"
 			done
 		else
-			echo "⚠️ Some required packages are not installed. The script may not work correctly."
+			echo "⚠️ Some required packages are not installed. The script may not work correctly." >&2
 		fi
 	else
 		echo "✅ All prerequisite packages are already installed."
@@ -150,31 +164,47 @@ install_kubectl() {
 
 }
 
+setup_cluster() {
+	echo "🔄 Creating K3d cluster..."
+
+	if k3d cluster list | grep -q "^$CLUSTER_NAME "; then
+		echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
+	else
+		K3D_PORTS=()
+		for mapping in "${PORT_MAPPING[@]}"; do
+			K3D_PORTS+=("-p" "${mapping}@server:0")
+		done
+
+		k3d cluster create "$CLUSTER_NAME" \
+			--api-port 6443 \
+			"${K3D_PORTS[@]}" \
+			--wait
+
+		echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
+	fi
+}
+
 install_argocd() {
 	if kubectl get namespace argocd &> /dev/null; then
-        echo "✅ ArgoCD est déjà installé (namespace trouvé)."
-        return 0
-    fi
+		echo "✅ ArgoCD is already installed (namespace found)."
+		return 0
+	fi
 
-    echo "📦 Installing ArgoCD..."
-    
-    # 1. Création du namespace
-    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	echo "📦 Installing ArgoCD..."
 
-    # 2. Installation via le manifest officiel
-    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-    spinner_cmd "Waiting for ArgoCD components to be ready..." kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+	spinner_cmd "Waiting for ArgoCD components to be ready..." kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 
-    # 3. Récupération du mot de passe admin (initial)
-    ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-    
-    echo "---------------------------------------------------"
-    echo "✅ ArgoCD est installé !"
-    echo "👤 Utilisateur : admin"
-    echo "🔑 Mot de passe : $ARGOCD_PWD"
-    echo "---------------------------------------------------"
-    echo "💡 Pour y accéder localement : kubectl port-forward svc/argocd-server -n argocd 8080:443"
+	ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+	
+	echo "---------------------------------------------------"
+	echo "✅ ArgoCD is installed!"
+	echo "👤 User: admin"
+	echo "🔑 Password: $ARGOCD_PWD"
+	echo "---------------------------------------------------"
+	echo "💡 To access it locally: kubectl port-forward svc/argocd-server -n argocd 8080:443"
 }
 
 setup_argocd_bootstrap() {
@@ -190,23 +220,9 @@ install_docker
 install_k3d
 install_kubectl
 
-echo "🔄 Creating K3d cluster..."
+setup_cluster
 
-if k3d cluster list | grep -q "^$CLUSTER_NAME "; then
-	echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
-else
-	K3D_PORTS=()
-	for mapping in "${PORT_MAPPING[@]}"; do
-		K3D_PORTS+=("-p" "${mapping}@server:0")
-	done
-
-	k3d cluster create "$CLUSTER_NAME" \
-		--api-port 6443 \
-		"${K3D_PORTS[@]}" \
-		--wait
-
-	echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
-fi
+echo "🔄 Configuring kubectl context..."
 
 kubectl cluster-info --context "k3d-$CLUSTER_NAME"
 
