@@ -6,6 +6,9 @@ echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
 BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml"
+PORT_MAPPING=(
+	"8888:30088"
+)
 
 SPINNER_PID=
 CHARS=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
@@ -192,7 +195,15 @@ echo "🔄 Creating K3d cluster..."
 if k3d cluster list | grep -q "^$CLUSTER_NAME "; then
 	echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
 else
-	k3d cluster create $CLUSTER_NAME --api-port 6443
+	K3D_PORTS=()
+	for mapping in "${PORT_MAPPING[@]}"; do
+		K3D_PORTS+=("-p" "${mapping}@server:0")
+	done
+
+	k3d cluster create "$CLUSTER_NAME" \
+		--api-port 6443 \
+		"${K3D_PORTS[@]}" \
+		--wait
 
 	echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
 fi
