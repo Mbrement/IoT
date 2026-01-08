@@ -116,14 +116,30 @@ install_docker() {
 		return 0
 	fi
 
-	echo "📦 Installing Docker..."
+	if [ -f /etc/os-release ]; then
+        . /etc/os-release
+    else
+        echo "❌ Error: Cannot detect OS (missing /etc/os-release)." >&2
+        exit 1
+    fi
+
+    if [[ "$ID" != "debian" && "$ID" != "ubuntu" ]]; then
+        echo "❌ Error: This script only supports Debian or Ubuntu. (Detected: $ID)" >&2
+        exit 1
+    fi
+
+	echo "📦 Installing Docker for $ID ($VERSION_CODENAME)..."
 
 	SUDO=$(get_sudo)
 
-	# Following Docker's official installation steps for Debian-based systems https://docs.docker.com/engine/install/debian/
+	# Following Docker's official installation https://docs.docker.com/engine/install
 	$SUDO install -m 0755 -d /etc/apt/keyrings
-	$SUDO curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+
+	local GPG_URL="https://download.docker.com/linux/$ID/gpg"
+
+	$SUDO curl -fsSL "$GPG_URL" -o /etc/apt/keyrings/docker.asc
 	$SUDO chmod a+r /etc/apt/keyrings/docker.asc
+
 	$SUDO tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/debian
