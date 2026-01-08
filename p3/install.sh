@@ -23,11 +23,8 @@ spinner() {
 
 cleanup() {
 	if [[ -n $SPINNER_PID ]]; then
-		debug "killing spinner ($SPINNER_PID)"
 		kill "$SPINNER_PID"
 	fi
-
-	debug 'finished spinner'
 }
 
 spinner_cmd() {
