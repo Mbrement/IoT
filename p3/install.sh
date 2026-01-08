@@ -5,6 +5,7 @@ set -e
 echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
+BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/main/manifest/bootstrap.yml"
 
 get_sudo() {
 	SUDO=""
@@ -113,10 +114,47 @@ install_kubectl() {
 
 }
 
+install_argocd() {
+	if kubectl get namespace argocd &> /dev/null; then
+        echo "✅ ArgoCD est déjà installé (namespace trouvé)."
+        return 0
+    fi
+
+    echo "📦 Installing ArgoCD..."
+    
+    # 1. Création du namespace
+    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+    # 2. Installation via le manifest officiel
+    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+    echo "⏳ Waiting for ArgoCD components to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+
+    # 3. Récupération du mot de passe admin (initial)
+    ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+    
+    echo "---------------------------------------------------"
+    echo "✅ ArgoCD est installé !"
+    echo "👤 Utilisateur : admin"
+    echo "🔑 Mot de passe : $ARGOCD_PWD"
+    echo "---------------------------------------------------"
+    echo "💡 Pour y accéder localement : kubectl port-forward svc/argocd-server -n argocd 8080:443"
+}
+
+setup_argocd_bootstrap() {
+	echo "🔄 Setting up ArgoCD bootstrap application..."
+
+	kubectl apply -f $BOOSTRAP_MANIFEST_URL
+
+	echo "✅ ArgoCD bootstrap application applied."
+}
+
 install_packages
 install_docker
 install_k3d
 install_kubectl
+install_argocd
 
 echo "🔄 Creating K3d cluster..."
 
@@ -131,6 +169,8 @@ fi
 kubectl cluster-info --context "k3d-$CLUSTER_NAME"
 
 kubectl get nodes
+
+setup_argocd_bootstrap
 
 echo "List of all pods, services, namespaces, and CRDs in the cluster:"
 
