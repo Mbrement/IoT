@@ -4,17 +4,26 @@ set -e
 
 echo "🚀 Installing environment..."
 
-install_package() {
-	local pkg=$1
-	local SUDO=""
+CLUSTER_NAME="petit-nuage"
+
+get_sudo() {
+	SUDO=""
 
 	if [[ $EUID -ne 0 ]]; then
 		if command -v sudo &> /dev/null; then
 			SUDO="sudo"
 		else
-			echo "⚠️ Not root and sudo not found. Trying to install without privileges..."
+			echo "⚠️ Not root and sudo not found. Trying to install without privileges..." >&2
 		fi
 	fi
+
+	echo "$SUDO"
+}
+
+install_package() {
+	local pkg=$1
+
+	SUDO=$(get_sudo)
 
 	if command -v apt &> /dev/null; then
 		$SUDO apt update && $SUDO apt install -y "$pkg"
@@ -29,11 +38,13 @@ install_docker() {
 		return 0
 	fi
 
+	SUDO=$(get_sudo)
+
 	# Following Docker's official installation steps for Debian-based systems https://docs.docker.com/engine/install/debian/
-	sudo install -m 0755 -d /etc/apt/keyrings
-	sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-	sudo chmod a+r /etc/apt/keyrings/docker.asc
-	sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+	$SUDO install -m 0755 -d /etc/apt/keyrings
+	$SUDO curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+	$SUDO chmod a+r /etc/apt/keyrings/docker.asc
+	$SUDO tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/debian
 Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
@@ -41,8 +52,8 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-	sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
-	sudo systemctl start docker
+	$SUDO apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+	$SUDO systemctl start docker
 }
 
 install_k3d() {
@@ -51,7 +62,14 @@ install_k3d() {
 		return 0
 	fi
 
+	SUDO=$(get_sudo)
+
 	curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+	echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+	$SUDO install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 }
 
 PREREQ_PKGS=(curl wget unzip ca-certificates)
@@ -84,10 +102,16 @@ install_k3d
 
 echo "🔄 Creating K3d cluster..."
 
-k3d cluster create mycluster
+k3d cluster create $CLUSTER_NAME --api-port 6443
 
-kubectl cluster-info --context k3d-mycluster
+kubectl cluster-info --context "k3d-$CLUSTER_NAME"
 
 kubectl get nodes
+
+echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
+
+echo "List of all pods, services, namespaces, and CRDs in the cluster:"
+
+kubectl get pods,svc,ns,crd --all-namespaces
 
 echo "✅ Environment setup complete!"
