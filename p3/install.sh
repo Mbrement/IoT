@@ -120,13 +120,17 @@ install_kubectl
 
 echo "🔄 Creating K3d cluster..."
 
-k3d cluster create $CLUSTER_NAME --api-port 6443
+if k3d cluster list | grep -q "^$CLUSTER_NAME "; then
+	echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
+else
+	k3d cluster create $CLUSTER_NAME --api-port 6443
+
+	echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
+fi
 
 kubectl cluster-info --context "k3d-$CLUSTER_NAME"
 
 kubectl get nodes
-
-echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
 
 echo "List of all pods, services, namespaces, and CRDs in the cluster:"
 
