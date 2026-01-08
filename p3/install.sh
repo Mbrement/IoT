@@ -186,7 +186,6 @@ install_packages
 install_docker
 install_k3d
 install_kubectl
-install_argocd
 
 echo "🔄 Creating K3d cluster..."
 
@@ -202,6 +201,7 @@ kubectl cluster-info --context "k3d-$CLUSTER_NAME"
 
 kubectl get nodes
 
+install_argocd
 setup_argocd_bootstrap
 
 echo "List of all pods, services, namespaces, and CRDs in the cluster:"
