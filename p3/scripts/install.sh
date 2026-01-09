@@ -142,14 +142,18 @@ install_docker() {
 
 	$SUDO tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
-URIs: https://download.docker.com/linux/debian
+URIs: https://download.docker.com/linux/$ID
 Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
 Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
+	$SUDO apt update
 	$SUDO apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 	$SUDO systemctl start docker
+
+	echo "🔄 Adding $USER to docker group..."
+	$SUDO usermod -aG docker $USER
 }
 
 install_k3d() {
@@ -177,13 +181,14 @@ install_kubectl() {
 	curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
 	echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
 	$SUDO install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
 }
 
 setup_cluster() {
 	echo "🔄 Creating K3d cluster..."
 
-	if k3d cluster list | grep -q "^$CLUSTER_NAME "; then
+	SUDO=$(get_sudo)
+
+	if $SUDO k3d cluster list | grep -q "^$CLUSTER_NAME "; then
 		echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
 	else
 		K3D_PORTS=()
@@ -191,7 +196,7 @@ setup_cluster() {
 			K3D_PORTS+=("-p" "${mapping}@server:0")
 		done
 
-		k3d cluster create "$CLUSTER_NAME" \
+		$SUDO k3d cluster create "$CLUSTER_NAME" \
 			--api-port 6443 \
 			"${K3D_PORTS[@]}" \
 			--wait
@@ -201,19 +206,19 @@ setup_cluster() {
 }
 
 install_argocd() {
-	if kubectl get namespace argocd &> /dev/null; then
+	if $KUBECMD get namespace argocd &> /dev/null; then
 		echo "✅ ArgoCD is already installed (namespace found)."
 		return 0
 	fi
 
 	echo "📦 Installing ArgoCD..."
 
-	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+	$KUBECMD create namespace argocd --dry-run=client -o yaml | $KUBECMD apply -f -
+	$KUBECMD apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-	spinner_cmd "Waiting for ArgoCD components to be ready..." kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+	spinner_cmd "Waiting for ArgoCD components to be ready..." $KUBECMD wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 
-	ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+	ARGOCD_PWD=$($KUBECMD -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 	
 	echo "---------------------------------------------------"
 	echo "✅ ArgoCD is installed!"
@@ -226,7 +231,7 @@ install_argocd() {
 setup_argocd_bootstrap() {
 	echo "🔄 Setting up ArgoCD bootstrap application..."
 
-	kubectl apply -f $BOOSTRAP_MANIFEST_URL
+	$KUBECMD apply -f $BOOSTRAP_MANIFEST_URL
 
 	echo "✅ ArgoCD bootstrap application applied."
 }
@@ -240,15 +245,18 @@ setup_cluster
 
 echo "🔄 Configuring kubectl context..."
 
-kubectl cluster-info --context "k3d-$CLUSTER_NAME"
+KUBECMD="$(get_sudo) kubectl"
 
-kubectl get nodes
+$KUBECMD cluster-info --context "k3d-$CLUSTER_NAME"
+
+$KUBECMD get nodes
 
 install_argocd
 setup_argocd_bootstrap
 
 echo "List of all pods, services, namespaces, and CRDs in the cluster:"
 
-kubectl get pods,svc,ns,crd --all-namespaces
+$KUBECMD get pods,svc,ns,crd --all-namespaces
 
 echo "✅ Environment setup complete!"
+echo "💡 You may need to login again to access to the new environment."
