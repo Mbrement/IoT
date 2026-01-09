@@ -79,7 +79,7 @@ install_package() {
 	if command -v apt &> /dev/null; then
 		$SUDO apt update && $SUDO apt install -y "$pkg"
 	else
-		echo "❌ No supported package manager found. Install $pkg manually." >&2
+		echo "❌ Error: No supported package manager found. Install $pkg manually." >&2
 	fi
 }
 
@@ -190,19 +190,20 @@ setup_cluster() {
 
 	if $SUDO k3d cluster list | grep -q "^$CLUSTER_NAME "; then
 		echo "⚠️ K3d cluster '$CLUSTER_NAME' already exists. Skipping creation."
-	else
-		K3D_PORTS=()
-		for mapping in "${PORT_MAPPING[@]}"; do
-			K3D_PORTS+=("-p" "${mapping}@server:0")
-		done
-
-		$SUDO k3d cluster create "$CLUSTER_NAME" \
-			--api-port 6443 \
-			"${K3D_PORTS[@]}" \
-			--wait
-
-		echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
+		return 0
 	fi
+
+	K3D_PORTS=()
+	for mapping in "${PORT_MAPPING[@]}"; do
+		K3D_PORTS+=("-p" "${mapping}@server:0")
+	done
+
+	$SUDO k3d cluster create "$CLUSTER_NAME" \
+		--api-port 6443 \
+		"${K3D_PORTS[@]}" \
+		--wait
+
+	echo "✅ K3d cluster '$CLUSTER_NAME' created successfully."
 }
 
 install_argocd() {
