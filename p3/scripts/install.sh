@@ -13,7 +13,7 @@ echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
 # URL of the ArgoCD bootstrap manifest
-BOOTSTRAP_MANIFEST_URL="${MANIFEST_URL:-'https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml'}"
+BOOTSTRAP_MANIFEST_URL="${MANIFEST_URL:-https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml}"
 # List of all port mappings for the k3d cluster
 # K3d runs on Docker, it cannot automatically map ports based on services like a normal Kubernetes cluster.
 PORT_MAPPING=(
@@ -117,16 +117,16 @@ install_docker() {
 	fi
 
 	if [ -f /etc/os-release ]; then
-        . /etc/os-release
-    else
-        echo "❌ Error: Cannot detect OS (missing /etc/os-release)." >&2
-        exit 1
-    fi
+		. /etc/os-release
+	else
+		echo "❌ Error: Cannot detect OS (missing /etc/os-release)." >&2
+		exit 1
+	fi
 
-    if [[ "$ID" != "debian" && "$ID" != "ubuntu" ]]; then
-        echo "❌ Error: This script only supports Debian or Ubuntu. (Detected: $ID)" >&2
-        exit 1
-    fi
+	if [[ "$ID" != "debian" && "$ID" != "ubuntu" ]]; then
+		echo "❌ Error: This script only supports Debian or Ubuntu. (Detected: $ID)" >&2
+		exit 1
+	fi
 
 	echo "📦 Installing Docker for $ID ($VERSION_CODENAME)..."
 
@@ -225,13 +225,13 @@ install_argocd() {
 	echo "👤 User: admin"
 	echo "🔑 Password: $ARGOCD_PWD"
 	echo "---------------------------------------------------"
-	echo "💡 To access it locally: kubectl port-forward svc/argocd-server -n argocd 8080:443"
+	echo "💡 To access it locally: kubectl port-forward svc/argocd-server -n argocd 8000:443"
 }
 
 setup_argocd_bootstrap() {
 	echo "🔄 Setting up ArgoCD bootstrap application..."
 
-	$KUBECMD apply -f $BOOSTRAP_MANIFEST_URL
+	curl -k "$BOOTSTRAP_MANIFEST_URL" | $KUBECMD apply -f -
 
 	echo "✅ ArgoCD bootstrap application applied."
 }
