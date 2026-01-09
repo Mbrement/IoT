@@ -13,7 +13,7 @@ echo "🚀 Installing environment..."
 
 CLUSTER_NAME="petit-nuage"
 # URL of the ArgoCD bootstrap manifest
-BOOSTRAP_MANIFEST_URL="https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml"
+BOOTSTRAP_MANIFEST_URL="${MANIFEST_URL:-'https://raw.githubusercontent.com/Maxenceee/iot-42-cluster-conf/refs/heads/main/bootstrap.yml'}"
 # List of all port mappings for the k3d cluster
 # K3d runs on Docker, it cannot automatically map ports based on services like a normal Kubernetes cluster.
 PORT_MAPPING=(
